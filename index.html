@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en" class="dark-theme">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VPW Meridian 7 — Financial Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Three.js and Post-Processing Dependencies -->
+<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/"
+    }
+  }
+</script>
+
+<style>
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS & RESET (DARK THEME)
+   ═══════════════════════════════════════════ */
+:root {
+  --bg: #030305;
+  --text: #F0F0F5;
+  --text-muted: #8A8B99;
+  --text-dim: #555666;
+  --graphite: #2A2B33;
+  --hairline: rgba(255,255,255,0.06);
+  --gold: #D4BA5A;
+  --hunter: #355E3B;
+  
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', var(--font-sans);
+  
+  --content-pad: clamp(1.5rem, 5vw, 4rem);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* Background Canvas */
+#webgl-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Overlay grain */
+.grain-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1; opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Nav */
+.nav {
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 100;
+  padding: 1.5rem var(--content-pad);
+  mix-blend-mode: difference;
+}
+.nav-inner {
+  display: flex; justify-content: space-between; align-items: center;
+  max-width: 1400px; margin: 0 auto;
+}
+.nav-links { display: flex; gap: 2.5rem; align-items: center; }
+.nav-link {
+  color: var(--text); text-decoration: none; font-size: 0.8125rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; transition: opacity 0.3s ease;
+}
+.nav-link:hover { opacity: 1; }
+.nav-cta {
+  color: var(--bg); background: var(--text); text-decoration: none; font-size: 0.8125rem; font-weight: 600;
+  padding: 0.6rem 1.2rem; border-radius: 20px; transition: transform 0.3s var(--ease-expo);
+}
+.nav-cta:hover { transform: scale(1.05); }
+
+/* Typography */
+h1, h2, h3 { font-family: var(--font-display); font-weight: 300; letter-spacing: -0.02em; line-height: 1.1; }
+
+/* Main layout */
+.perspective-root { position: relative; z-index: 10; }
+.content-wrap { max-width: 1400px; margin: 0 auto; padding: 0 var(--content-pad); }
+
+/* Hero */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 8rem var(--content-pad) 4rem;
+  max-width: 1400px; margin: 0 auto;
+  position: relative;
+  z-index: 2; /* keep text above 3d scene but below nav */
+  pointer-events: none; /* Let clicks pass through to 3d if needed, though we only have links */
+}
+.hero > * { pointer-events: auto; }
+.hero-eyebrow {
+  color: var(--gold); font-size: 0.8125rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 2rem;
+}
+.hero-headline {
+  font-size: clamp(3.5rem, 8vw, 6.5rem);
+  max-width: 12ch;
+  margin-bottom: 2.5rem;
+  text-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.hero-subhead {
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  color: var(--text-muted);
+  max-width: 45ch;
+  line-height: 1.6;
+  margin-bottom: 3rem;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+}
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 0.75rem;
+  background: var(--text); color: var(--bg);
+  padding: 1rem 2rem; border-radius: 30px;
+  text-decoration: none; font-weight: 500; font-size: 0.9375rem;
+  transition: transform 0.4s var(--ease-expo);
+}
+.btn-primary:hover { transform: translateY(-2px); }
+
+/* Sections */
+.section { padding: 8rem 0; position: relative; z-index: 2; pointer-events: none; }
+.section > * { pointer-events: auto; }
+.section-headline { font-size: clamp(2.5rem, 5vw, 4rem); margin-bottom: 4rem; max-width: 18ch; }
+
+/* Grid */
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 3rem; }
+.card {
+  padding: 2.5rem; border: 1px solid var(--hairline);
+  background: rgba(10,10,15,0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: 1px;
+}
+.card-title { font-size: 1.5rem; margin-bottom: 1rem; color: var(--text); }
+.card-text { color: var(--text-muted); font-size: 0.9375rem; line-height: 1.6; }
+
+/* Footer */
+.footer { padding: 4rem 0 2rem; border-top: 1px solid var(--hairline); margin-top: 8rem; position: relative; z-index: 2; pointer-events: none; }
+.footer > * { pointer-events: auto; }
+.footer-inner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2rem; }
+.footer-brand img { height: 24px; filter: invert(1); opacity: 0.8; }
+.footer-compliance { color: var(--text-dim); font-size: 0.8125rem; max-width: 60ch; line-height: 1.6; }
+.footer-bottom { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--hairline); display: flex; justify-content: space-between; color: var(--text-dim); font-size: 0.75rem; }
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hero { text-align: center; align-items: center; }
+  .hero-headline { margin-left: auto; margin-right: auto; }
+  .hero-subhead { margin-left: auto; margin-right: auto; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="webgl-canvas"></canvas>
+<div class="grain-overlay"></div>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo"><img src="https://lh3.googleusercontent.com/d/1FM2Xbfp-F5Qnqd6K_ujxNeZ0rgscmaJI" alt="VPW" height="36"></a>
+    <div class="nav-links">
+      <a href="#" class="nav-link">Meridian 7</a>
+      <a href="#" class="nav-link">Methodology</a>
+      <a href="mailto:ceo@onlyvpw.com" class="nav-cta">Contact us</a>
+    </div>
+  </div>
+</nav>
+
+<div class="perspective-root">
+  <main>
+    <section class="hero">
+      <p class="hero-eyebrow">Meridian 7</p>
+      <h1 class="hero-headline">The intelligence behind your financial clarity</h1>
+      <p class="hero-subhead">One engine analyzes over 1,000 variables to produce a financial plan fitted precisely to your life.</p>
+      <a href="mailto:ceo@onlyvpw.com" class="btn-primary">Contact us &rarr;</a>
+    </section>
+
+    <section class="section content-wrap">
+      <h2 class="section-headline">Precision at every layer of your wealth.</h2>
+      <div class="grid-3">
+        <div class="card">
+          <h3 class="card-title">Dynamic Modeling</h3>
+          <p class="card-text">Continuous analysis of market regimes, tax structures, and liquidity needs mapped against your unique time horizons.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Risk Architecture</h3>
+          <p class="card-text">Quantitative assessment of risk tolerance, separating behavioral noise from structural portfolio requirements.</p>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Total Convergence</h3>
+          <p class="card-text">Income patterns, family obligations, and macroeconomic signals resolved into a single, highly coherent strategic plan.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="content-wrap">
+      <div class="footer-inner">
+        <div class="footer-brand"><img src="https://lh3.googleusercontent.com/d/1FM2Xbfp-F5Qnqd6K_ujxNeZ0rgscmaJI" alt="VPW"></div>
+        <div class="footer-compliance">
+          <p>VPW LLP &middot; Registered Mutual Fund Distributor &middot; AMFI Registered</p>
+          <p style="margin-top:0.75rem;">Meridian 7 is an analytical engine. It does not provide investment advice, guarantee returns, or make recommendations. All analysis is for informational and educational purposes. Mutual fund investments are subject to market risks.</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 VPW LLP. All rights reserved.</span>
+        <span>Meridian 7 v8.0 (Cinematic)</span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+class SaturnScene {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // Enable SRGB output and cinematic ACES filming tone mapping
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x020203);
+    this.scene.fog = new THREE.FogExp2(0x020203, 0.005);
+
+    // Camera setup for side profile (tilted and low)
+    this.camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Move the camera to view Saturn from the front-right side slightly elevated
+    this.camera.position.set(0, 15, 60);
+    this.camera.lookAt(0, 0, 0);
+    this.cameraBasePos = this.camera.position.clone();
+
+    this.clock = new THREE.Clock();
+    
+    this.setupLighting();
+    this.setupPlanet();
+    this.setupRings();
+    this.setupMoons();
+    this.setupStarfield();
+    this.setupPostProcessing();
+
+    window.addEventListener('resize', this.onResize.bind(this));
+    
+    this.animate = this.animate.bind(this);
+    requestAnimationFrame(this.animate);
+  }
+
+  setupLighting() {
+    // Distant sun upper-left
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.8);
+    sunLight.position.set(-40, 20, 20);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 100;
+    sunLight.shadow.camera.left = -25;
+    sunLight.shadow.camera.right = 25;
+    sunLight.shadow.camera.top = 25;
+    sunLight.shadow.camera.bottom = -25;
+    sunLight.shadow.bias = -0.001;
+    this.scene.add(sunLight);
+
+    // Very soft ambient fill
+    const ambient = new THREE.AmbientLight(0x0c0c12, 0.15);
+    this.scene.add(ambient);
+
+    // Rim light (opposite sun)
+    const rimLight = new THREE.DirectionalLight(0x8899aa, 0.3);
+    rimLight.position.set(40, -10, -20);
+    this.scene.add(rimLight);
+  }
+
+  setupPlanet() {
+    this.planetGroup = new THREE.Group();
+    // Tilt the entire Saturn system (planet + rings) by 25 degrees (approx 0.45 rad)
+    this.planetGroup.rotation.z = -0.45; 
+    this.planetGroup.rotation.x = 0.15; // slight tip forward
+    this.scene.add(this.planetGroup);
+
+    // Planet body
+    const geo = new THREE.SphereGeometry(10, 64, 64);
+    
+    // We use standard material so it can receive shadows from rings, but inject custom colors.
+    // Instead of complex shader injection, let's create a procedural canvas texture and use MeshStandardMaterial for full PBR/Shadows!
+    const texSize = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = texSize; canvas.height = texSize;
+    const ctx = canvas.getContext('2d');
+    for (let y = 0; y < texSize; y++) {
+      const v = y / texSize;
+      const band = Math.sin(v * Math.PI * 40) + Math.sin(v * Math.PI * 15) * 0.5 + (Math.random()*0.1);
+      let r = 210, g = 190, b = 160;
+      if (band > 0.5) { r = 180; g = 160; b = 130; }
+      if (band < -0.5) { r = 220; g = 200; b = 150; }
+      r += Math.random()*10; g += Math.random()*10; b += Math.random()*10;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(0, y, texSize, 1);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    const mat = new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: 0.7,
+      metalness: 0.1,
+    });
+    
+    this.planet = new THREE.Mesh(geo, mat);
+    this.planet.castShadow = true;
+    this.planet.receiveShadow = true;
+    this.planetGroup.add(this.planet);
+
+    // Atmosphere glow wrapper
+    const atmGeo = new THREE.SphereGeometry(10.3, 64, 64);
+    const atmMat = new THREE.ShaderMaterial({
+      uniforms: {
+        glowColor: { value: new THREE.Color(0xaa9977) },
+        viewVector: { value: this.camera.position }
+      },
+      vertexShader: `
+        uniform vec3 viewVector;
+        varying float intensity;
+        void main() {
+          vec3 vNormal = normalize(normalMatrix * normal);
+          vec3 vNormel = normalize(normalMatrix * viewVector);
+          intensity = pow(0.6 - dot(vNormal, vNormel), 4.0);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 glowColor;
+        varying float intensity;
+        void main() {
+          vec3 glow = glowColor * intensity;
+          gl_FragColor = vec4(glow, intensity * 0.8);
+        }
+      `,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false
+    });
+    this.atmosphere = new THREE.Mesh(atmGeo, atmMat);
+    this.planetGroup.add(this.atmosphere);
+  }
+
+  setupRings() {
+    const innerR = 14;
+    const outerR = 26;
+    const ringGeo = new THREE.RingGeometry(innerR, outerR, 128);
+    
+    // Procedural texture for rings (Cassini division, varying opacity)
+    const size = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    for (let x = 0; x < size; x++) {
+      const t = x / size;
+      let alpha = 0.8 + Math.random() * 0.2;
+      let r = 210, g = 195, b = 175;
+      
+      // Cassini Division
+      if (t > 0.65 && t < 0.72) alpha = 0.05;
+      // Encke gap
+      if (t > 0.88 && t < 0.90) alpha = 0.1;
+      
+      // Density variations
+      if (t < 0.2) alpha *= t * 5; // inner fade
+      if (t > 0.3 && t < 0.5) { r = 190; g = 175; b = 155; alpha *= 0.9; }
+      
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.fillRect(x, 0, 1, 1);
+    }
+    const ringTex = new THREE.CanvasTexture(canvas);
+    ringTex.colorSpace = THREE.SRGBColorSpace;
+
+    // We must ensure the UVs of the RingGeometry map radius to X
+    const pos = ringGeo.attributes.position;
+    const uvs = ringGeo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const radius = Math.sqrt(x*x + y*y);
+      const u = (radius - innerR) / (outerR - innerR);
+      uvs.setXY(i, u, 0); // map radius to u
+    }
+
+    const ringMat = new THREE.MeshStandardMaterial({
+      map: ringTex,
+      transparent: true,
+      side: THREE.DoubleSide,
+      roughness: 0.5,
+      metalness: 0.1,
+      alphaTest: 0.01 // for shadows
+    });
+
+    this.rings = new THREE.Mesh(ringGeo, ringMat);
+    this.rings.rotation.x = Math.PI / 2; // Flat on XZ plane relative to planetGroup
+    this.rings.receiveShadow = true;
+    this.rings.castShadow = true;
+    this.planetGroup.add(this.rings);
+    
+    // Custom depth material to cast shadows with alpha map
+    this.rings.customDepthMaterial = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+      map: ringTex,
+      alphaTest: 0.5
+    });
+  }
+
+  setupMoons() {
+    this.moons = [];
+    const moonData = [
+      { name: 'Titan', r: 0.8, dist: 38, speed: 0.08, phase: 0, tilt: 0.05, color: 0xe6a85e },
+      { name: 'Rhea', r: 0.4, dist: 32, speed: 0.12, phase: 2, tilt: -0.02, color: 0xcccccc },
+      { name: 'Dione', r: 0.3, dist: 28, speed: 0.16, phase: 4, tilt: 0.01, color: 0xdddddd },
+      { name: 'Tethys', r: 0.28, dist: 24, speed: 0.2, phase: 1, tilt: -0.03, color: 0xeeeeee },
+      { name: 'Enceladus', r: 0.2, dist: 19, speed: 0.28, phase: 5, tilt: 0.0, color: 0xffffff },
+      { name: 'Mimas', r: 0.15, dist: 16, speed: 0.35, phase: 3, tilt: 0.04, color: 0xbbbbbb },
+    ];
+
+    for (const data of moonData) {
+      const geo = new THREE.SphereGeometry(data.r, 32, 32);
+      const mat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.8 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      
+      const orbitGroup = new THREE.Group();
+      orbitGroup.rotation.x = data.tilt;
+      orbitGroup.rotation.z = Math.random() * Math.PI;
+      
+      mesh.position.x = data.dist;
+      orbitGroup.add(mesh);
+      
+      this.planetGroup.add(orbitGroup);
+      this.moons.push({ group: orbitGroup, speed: data.speed, mesh: mesh });
+    }
+  }
+
+  setupStarfield() {
+    const starGeo = new THREE.BufferGeometry();
+    const starCount = 6000;
+    const posArray = new Float32Array(starCount * 3);
+    const sizeArray = new Float32Array(starCount);
+
+    for(let i = 0; i < starCount * 3; i+=3) {
+      // spherical distribution
+      const r = 200 + Math.random() * 300;
+      const theta = Math.random() * 2 * Math.PI;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      posArray[i] = r * Math.sin(phi) * Math.cos(theta);
+      posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);
+      posArray[i+2] = r * Math.cos(phi);
+      sizeArray[i/3] = Math.random(); // for twinkle
+    }
+
+    starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    starGeo.setAttribute('aSize', new THREE.BufferAttribute(sizeArray, 1));
+
+    const starMat = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 }
+      },
+      vertexShader: `
+        attribute float aSize;
+        varying float vAlpha;
+        uniform float time;
+        void main() {
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+          gl_PointSize = (2.0 + aSize * 2.0) * (300.0 / -mvPosition.z);
+          vAlpha = 0.5 + 0.5 * sin(time * 2.0 + aSize * 10.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vAlpha;
+        void main() {
+          float d = distance(gl_PointCoord, vec2(0.5));
+          if (d > 0.5) discard;
+          gl_FragColor = vec4(1.0, 1.0, 1.0, vAlpha * (1.0 - d*2.0));
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+    });
+
+    this.stars = new THREE.Points(starGeo, starMat);
+    this.scene.add(this.stars);
+  }
+
+  setupPostProcessing() {
+    this.composer = new EffectComposer(this.renderer);
+    
+    const renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(renderPass);
+    
+    // Gentle bloom
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.8,  // strength
+      0.6,  // radius
+      0.2   // threshold
+    );
+    this.composer.addPass(bloomPass);
+  }
+
+  onResize() {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  animate() {
+    requestAnimationFrame(this.animate);
+    const time = this.clock.getElapsedTime();
+
+    // Planet rotation (very slow)
+    this.planet.rotation.y = time * 0.05;
+    this.rings.rotation.z = time * 0.02;
+
+    // Atmosphere update
+    this.atmosphere.material.uniforms.viewVector.value = new THREE.Vector3().subVectors(this.camera.position, this.planetGroup.position);
+
+    // Moons
+    for (const m of this.moons) {
+      m.group.rotation.y = time * m.speed;
+    }
+
+    // Star twinkle
+    this.stars.material.uniforms.time.value = time;
+
+    // Cinematic Camera Drift
+    // Base position is (0, 15, 60). We drift slightly around this.
+    const scrollY = window.scrollY;
+    const scrollFactor = scrollY * 0.01;
+    
+    this.camera.position.x = this.cameraBasePos.x + Math.sin(time * 0.1) * 3;
+    this.camera.position.y = this.cameraBasePos.y + Math.cos(time * 0.15) * 2 - scrollFactor * 2;
+    this.camera.position.z = this.cameraBasePos.z + Math.sin(time * 0.08) * 4 + scrollFactor * 5;
+    this.camera.lookAt(0, 0, 0);
+
+    this.composer.render();
+  }
+}
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  const saturn = new SaturnScene('webgl-canvas');
+});
+</script>
+
+</body>
+</html>
